@@ -1,0 +1,52 @@
+---
+# tasks file for jenkins
+
+- name: Install Java 11
+  apt:
+    name: openjdk-11-jdk
+    state: present
+    update_cache: yes
+
+- name: Download Jenkins Key
+  apt_key:
+    url: https://pkg.jenkins.io/debian/jenkins.io.key
+    state: present
+    
+- name: Import Jenkins Repo
+  apt_repository:
+    repo: deb http://pkg.jenkins.io/debian-stable binary/
+    state: present
+
+- name: Apt Install Jenkins 
+  apt:
+    name: jenkins
+    state: present
+    update_cache: yes
+
+- name: Start jenkins
+  systemd:
+    name: jenkins
+    state: started
+    enabled: true
+
+- name: time out for 15
+  wait_for: timeout=15
+
+- name: create .ssh folder
+  file:
+    path: /home/jenkins/.ssh
+    state: directory
+    mode: "0700"
+    owner: jenkins
+    group: jenkins
+
+- name: install jenkins
+  apt: name=jenkins state=present
+
+- name: copy private key over
+  copy:
+    src: ~/.ssh/prod-key.pem
+    dest: /home/jenkins/.ssh/prod-key.pem
+    owner: jenkins
+    group: jenkins
+    mode: u=rw,g=,o=

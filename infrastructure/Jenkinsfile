@@ -1,0 +1,98 @@
+pipeline{
+  agent any
+    environment {
+      Job_IP = "${env.JOB_NAME}"
+  }
+
+  stages{
+    stage("Build"){
+      steps{
+        sh """
+        ssh -i /home/jenkins/.ssh/prod-key.pem ubuntu@\${$Job_IP} -oStrictHostKeyChecking=no << EOF
+        if [ ! -d ./Project-Taurus ]
+        then git clone https://TMarshQA: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@Github.com/TMarshQA/Project-Taurus.git
+        fi
+        cd ~/Project-Taurus/
+        git checkout $env.GIT_BRANCH
+        git pull
+        cd ~/Project-Taurus/TaurusBackend
+        mvn clean package
+        cd ..
+        docker-compose build --parallel
+        """
+        }
+    }
+
+    stage("Push"){
+      steps{
+        sh """
+        Job_IP=${JOB_NAME}
+        ssh -i /home/jenkins/.ssh/prod-key.pem ubuntu@\${$Job_IP} -oStrictHostKeyChecking=no << EOF
+        cd ~/Project-Taurus
+        git checkout $env.GIT_BRANCH
+        docker rm -f \$(docker ps -a)
+        docker-compose push
+        """
+        
+      }
+    }
+
+    stage("Test"){
+      when {
+          expression {
+              return env.GIT_BRANCH == "origin/dev"
+                    }
+                  }
+      steps{
+                sh """
+                Job_IP=${JOB_NAME}
+                ssh -i /home/jenkins/.ssh/prod-key.pem ubuntu@\${$Job_IP} -oStrictHostKeyChecking=no << EOF
+                cd ~/Project-Taurus/TaurusBackend
+                git checkout $env.GIT_BRANCH
+                mvn test
+                """
+      }
+    }
+
+
+    stage("Deploy"){
+      when {
+          expression {
+              return env.GIT_BRANCH == "origin/main"
+                    }
+                  }
+      steps{
+        sh """
+        Job_IP=${JOB_NAME}
+        ssh -i /home/jenkins/.ssh/prod-key.pem ubuntu@\${$Job_IP} -oStrictHostKeyChecking=no << EOF
+        cd ~/Project-Taurus
+        git checkout $env.GIT_BRANCH
+        docker rm -f \$(docker ps -a)
+        docker-compose up -d --build
+        """
+      }
+    }
+
+    stage("Copy Reports"){
+          steps{
+            sh """
+            Job_IP=${JOB_NAME}
+            scp -r -i /home/jenkins/.ssh/prod-key.pem ubuntu@\${$Job_IP}:/home/ubuntu/Project-Taurus/TaurusBackend/target /var/lib/jenkins/workspace/TEST/TaurusBackend
+            """
+          }
+        }
+
+
+  }
+
+    post {
+      always{ 
+        junit allowEmptyResults: true, testResults: '**/target/surefire-reports/TEST-*.xml'
+        jacoco execPattern: '**/jacoco.exec'
+      }
+    }
+} 
+
+
+// scp -i /home/jenkins/.ssh/prod-key.pem ubuntu@\${$Job_IP}:Project-Taurus/TaurusBackend/target/surefire-reports/TEST-com.bae.service.SuspectServiceUnitTest.xml /home/jenkins
+// scp -i /home/jenkins/.ssh/prod-key.pem ubuntu@\${$Job_IP}:Project-Taurus/TaurusBackend/target/surefire-reports/TEST-com.bae.TaurusBackendApplicationTests.xml /home/jenkins

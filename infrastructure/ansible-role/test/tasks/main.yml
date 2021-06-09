@@ -1,0 +1,58 @@
+---
+# tasks file for test
+- name: Install Java 11
+  apt:
+    name: openjdk-11-jdk
+    state: present
+    update_cache: yes
+
+- name: Install Dependencies
+  apt:
+    pkg:
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - gnupg
+    - lsb-release
+    update_cache: true
+
+- name: Add Docker GPG Key
+  apt_key: 
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add Docker APT Repository
+  apt_repository: 
+    repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename|lower }} stable
+    state: present
+
+- name: Install Docker Engine
+  apt:
+    pkg:
+    - docker-ce 
+    - docker-ce-cli 
+    - containerd.io
+    update_cache: true
+
+- name: Add remote "ubuntu" user to "docker" group
+  remote_user: ubuntu
+  user:
+    name: ubuntu
+    groups: docker
+    append: true
+  
+- name: Install docker-compose
+  remote_user: ubuntu
+  raw: sudo curl -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose
+
+- name: Install Apache Maven
+  apt:
+    name: maven
+    state: present
+    update_cache: yes
+
+- name: Install npm
+  apt:
+    name: npm
+    state: present
+    update_cache: yes
